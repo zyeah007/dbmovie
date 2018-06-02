@@ -122,6 +122,7 @@ class dbSpider(object):
 def get_cookies(raw_lines):
     '''
     用cookies登陆网站，才能进行更多的评论浏览。将原始cookies字符串raw_cookies转换成字段格式
+    add line for test
     :param raw_lines: 原始cookies字符串。需每次从网站复制
     :return: 字典格式的cookies
     '''
@@ -139,6 +140,8 @@ if __name__ == '__main__':
     raw_cookies = 'll="108288"; bid=2uMpC4PcO5k; __utmz=30149280.1513535714.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); _vwo_uuid_v2=F403C9A2B9A079E30D8EB069525BF65A|79d71d8a8a48b0d26c96f8d9355ba2cf; _ga=GA1.2.1604958148.1513535714; __yadk_uid=Zk3qdOYuIbxnhssM4kpUtguyMkmOfRgO; ps=y; ue="zyquark@163.com"; push_doumail_num=0; ap=1; __utmv=30149280.4850; ct=y; __utmc=30149280; dbcl2="48504863:w9MJkEjFIgI"; _gid=GA1.2.1754008071.1527690786; ck=ETI6; push_noty_num=0; _pk_ref.100001.8cb4=%5B%22%22%2C%22%22%2C1527720445%2C%22https%3A%2F%2Fmovie.douban.com%2Fsubject%2F27133303%2Fcomments%3Fstart%3D240%26limit%3D20%26sort%3Dnew_score%26status%3DP%26percent_type%3D%22%5D; __utma=30149280.1604958148.1513535714.1527690786.1527720446.10; _pk_id.100001.8cb4=ac1edbf554daefc8.1513535713.8.1527720663.1527691223.'
     cookies = {'cookie': raw_cookies}
     spider = dbSpider(db=db, collection=collection, cookies=raw_cookies)
+    print('开始爬取......')
     start_url = 'https://movie.douban.com/subject/27133303/comments?status=P'
-    spider.dbCrawl(cur_url=start_url, pageNum=100)
+    spider.dbCrawl(cur_url=start_url, pageNum=20) #只能爬取500条评论
     print('共爬取%d条评论' % client[db][collection].count())
+    print('下一步进入分析')
