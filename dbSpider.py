@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 # coding=utf-8
 '''
-从豆瓣电影抓取影片《超时空同居》的短评；将数据用mongo数据库存储；用pandas对电影评论数据进行分析
+从豆瓣电影抓取影片的短评；将数据用mongo数据库存储；用pandas对电影评论数据进行分析
 '''
 import requests
 from lxml import etree
 import re
 from pymongo import MongoClient
-import random
 import time
 
 
@@ -49,7 +48,7 @@ class dbSpider(object):
     def get_comments(self, cur_url):
         '''
         从当前html页面解析出20条评论的信息,并存入mongo数据库。获取每条评论的id,日期，评论内容，有用数量
-        :param cur_url:
+        :param cur_url:待爬取页面url
         :return:当前页面的20条评论数据信息
         '''
         print('解析页面:%s' % cur_url)
