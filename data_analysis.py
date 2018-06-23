@@ -8,14 +8,15 @@
 （4）评论发布时间与评论数量之间的关系
 （5）对全部评论内容进行文本分析
 '''
-
-import pandas as pd
 from pandas import DataFrame, Series
 from pymongo import MongoClient
 import numpy as np
 from pylab import mpl
 from datetime import datetime
 import matplotlib.pyplot as plt
+import jieba
+import pandas as pd
+from wordcloud import WordCloud
 
 # 设置绘图中文显示
 mpl.rcParams['font.sans-serif'] = ['SimHei']
@@ -27,6 +28,9 @@ class commentsAnalysis(object):
         self.database = database
         self.movie_name = movie_name
         self.grades = {'力荐': 5, '推荐': 4, '还行': 3, '较差': 2, '很差': 1}
+        self.stopwords = pd.read_excel('./stopwords.xlsx')
+        self.userdict = open('./newdict.txt')
+        self.font_path = '/Library/Fonts/simhei.ttf'
 
     def getData(self):
         '''
@@ -69,42 +73,90 @@ class commentsAnalysis(object):
         ratings = pd.concat([counts, Series(self.grades, name='score')], axis=1)
         ratings.dropna(inplace=True)
         ratings.sort_values(by='score', inplace=True)
+        ratings['prop'] = ratings['counts'] / ratings['counts'].sum()
+        fig, ax = plt.subplots()
+        y_ticks = ratings['score'].values
+        y_labels = np.array(['1星', '2星', '3星', '4星', '5星'])
         print('电影评论分数分布如下图：')
-        ax = ratings['counts'].plot(title='电影评论分数分布图', kind='barh')
-        fig = ax.get_figure()
+        ax.barh(y_ticks, ratings['prop'], color='orange', alpha=1)
+        ax.set_yticks(y_ticks)
+        ax.set_xticks([])
+        ax.set_yticklabels(y_labels)
+        for a, b in zip(ratings.prop.values, y_ticks):  # 在图中添加数据标签
+            ax.text(a + 0.01, b, '%.2f%%' % (a * 100))
+        ax.set_xlim(0, 0.4)
+        ax.text(0, 6, '豆瓣评分 %.1f' % (2 * data.score.mean()))
         fig.savefig('电影评论分数分布图.png')
 
     def ratingByTime(self, data):
         '''
-        分析样本中评分随时时间对变化，需要使用groupby技术
+        分析样本中评分随时时间的变化，需要使用groupby技术
         :param data:
         :return:
         '''
         # 增加新的日期统计字段
-        new_col = 'date_for_analysis'
-        data[new_col] = data['pub_time'].apply(lambda x: datetime.strftime(x, '%m-%d'))
-        rating_by_time = data['score'].groupby(by=data[new_col]).average()
+        new_col = 'month'
+        data[new_col] = data['pub_time'].apply(lambda x: datetime.strftime(x, '%Y-%m'))
+        rating_by_time = data['score'].groupby(by=data[new_col]).mean() * 2  # 原始数据是5分制，这里改成10分制
         rating_by_time.sort_index()
         title = '电影评分时间变化图'
         print('%s:' % title)
-        ax = rating_by_time.plot(title=title, kind='bar')
-        fig = ax.get_figure()
+        fig, ax = plt.subplots()
+        ax.plot(rating_by_time, linestyle='--', marker='o')
+        ax.axes.set_xticklabels(rating_by_time.index.values, rotation=45)
+        ax.set_title(title)
         fig.savefig('%s.png' % title)
 
-    def voteAnalysis(self, data):
+    def getWordFreq(self, text_arr):
+        '''
+        获取词频
+        :param text_arr:待分析的文本数组
+        :return: 经过分词后的词组及词频数
+        '''
+        segment = self.sentence_seg(text_arr)
+        word_count = segment.value_counts()
+        return word_count
 
-        pass
+    def sentence_seg(self, text_arr):
+        '''
+        利用jieba库进行分词，并去掉停用词，返回dataframe数据
+        :param text: 待分词文本数组
+        :return:去掉停用词后分词表，dataframe结构
+        '''
+        jieba.load_userdict(self.userdict)
+        result = pd.DataFrame()
+        try:
+            for t in text_arr:
+                seg = DataFrame(jieba.cut(t), columns=['word'])  # 对每条评论进行分词
+                seg['word'] = seg['word'].str.strip()  # 去掉\n符号
+                seg['word_len'] = seg['word'].str.len()
+                seg = seg[seg['word_len'] > 1]
+                seg = seg[~seg['word'].isin([''])]  # 去掉空字符的行
+                seg = seg[~seg['word'].isin(self.stopwords.stopword)]  # 去掉停用词
+                result = pd.concat([seg, result], ignore_index=True)
+            segment = result['word']
+            return segment
+        except Exception:
+            print('分词失败！')
+            return None
+
+    def drawWordCloud(self, word_count, width=800, height=400, background_color='white', background_img=None,
+                      max_words=200, max_font_size=80):
+
+        wc = WordCloud(font_path=self.font_path, width=width, height=height, max_words=max_words,
+                       max_font_size=max_font_size,
+                       background_color=background_color, mask=background_img)
+        my_wordcloud = wc.generate_from_frequencies(word_count, max_font_size=max_font_size)
+        return my_wordcloud
 
 
-# 评论发布时间分布情况
-
-# TODO: 由于时间范围可能会很大，所以设置时间窗口，在该窗口内进行统计
-# 评价分布
-# TODO:根据评价得到对应的分数（满分5分），然后可以计算出平均分
-
+'''
 if __name__ == '__main__':
-    database = 'douban'
-    movie_name = 'comments'
+    database = input('请输入要连接的数据库名称：')
+    movie_name = input('请输入集合名称：')
     dataAnalysis = commentsAnalysis(database, movie_name)
     data = dataAnalysis.getCleanData()
-    dataAnalysis.ratingByTime(data)
+    word_count = dataAnalysis.getWordFreq(data['comment_lines'])
+    my_wordcloud = dataAnalysis.drawWordCloud(word_count)
+    my_wordcloud.to_file('img.png')
+'''
